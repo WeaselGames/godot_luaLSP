@@ -1,0 +1,20 @@
+[configuration]
+entry_symbol = "luaCodeEdit_library_init"
+compatibility_minimum = 4.1
+
+[libraries]
+linux.x86_64.debug = "bin/libluacodeedit.linux.template_debug.x86_64.so"
+linux.x86_64.release = "bin/libluacodeedit.linux.template_release.x86_64.so"
+linux.x86_32.debug = "bin/libluacodeedit.linux.template_debug.x86_32.so"
+linux.x86_32.release = "bin/libluacodeedit.linux.template_release.x86_32.so"
+
+windows.x86_64.debug = "bin/libluacodeedit.windows.template_debug.x86_64.dll"
+windows.x86_64.release = "bin/libluacodeedit.windows.template_release.x86_64.dll"
+windows.x86_32.debug = "bin/libluacodeedit.windows.template_debug.x86_32.dll"
+windows.x86_32.release = "bin/libluacodeedit.windows.template_release.x86_32.dll"
+
+macos.debug = "bin/libluacodeedit.macos.template_debug.universal.dylib"
+macos.release = "bin/libluacodeedit.macos.template_release.universal.dylib"
+
+[icons]
+LuaCodeEdit = "res://addons/luaCodeEdit/icons/lua_code_edit.svg"

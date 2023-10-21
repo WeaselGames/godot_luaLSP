@@ -1,0 +1,7 @@
+[submodule "external/godot-cpp"]
+	path = external/godot-cpp
+	url = https://github.com/godotengine/godot-cpp
+	branch = 4.1
+[submodule "external/subprocess"]
+	path = external/subprocess
+	url = https://github.com/arun11299/cpp-subprocess
