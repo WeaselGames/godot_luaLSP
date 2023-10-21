@@ -5,6 +5,7 @@
 #include "luaLanguageServer.h"
 
 #include <godot_cpp/classes/code_edit.hpp>
+#include <godot_cpp/classes/timer.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/typed_array.hpp>
 
@@ -23,6 +24,16 @@ public:
 	virtual void _confirm_code_completion(bool replace) override;
 	virtual void _request_code_completion(bool force) override;
 	virtual TypedArray<Dictionary> _filter_code_completion_candidates(const TypedArray<Dictionary> &candidates) const;
+
+	void _on_code_completion_timeout();
+
+	Ref<LuaLanguageServer> get_lua_language_server() const;
+
+	void set_lua_language_server_path(String luals_path);
+	String get_lua_language_server_path() const;
+
+	void set_code_completion_timeout(int timeout);
+	int get_code_completion_timeout() const;
 
 	void set_member_variable_color(const Color &color);
 	Color get_member_variable_color() const;
@@ -45,11 +56,6 @@ public:
 	void set_string_color(const Color &color);
 	Color get_string_color() const;
 
-	void set_lua_language_server_path(String luals_path);
-	String get_lua_language_server_path() const;
-
-	Ref<LuaLanguageServer> get_lua_language_server() const;
-
 private:
 	String luals_path;
 
@@ -57,6 +63,8 @@ private:
 
 	Ref<LuaHighlighter> lua_highlighter;
 	Ref<LuaLanguageServer> lua_language_server;
+
+	Timer *code_completion_timer = nullptr;
 };
 
 #endif

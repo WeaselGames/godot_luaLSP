@@ -6,19 +6,50 @@
 #include <utility>
 
 LuaLanguageServer::LuaLanguageServer() {
+	server_process = Subprocess::new_platform_subprocess();
 }
 
 LuaLanguageServer::~LuaLanguageServer() {
 	if (running) {
 		stop();
 	}
+
+	delete server_process;
 }
 
 void LuaLanguageServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("stop"), &LuaLanguageServer::stop);
 	ClassDB::bind_method(D_METHOD("is_running"), &LuaLanguageServer::is_running);
 	ClassDB::bind_method(D_METHOD("start", "luals_path"), &LuaLanguageServer::start);
-	ClassDB::bind_method(D_METHOD("send_message", "message"), &LuaLanguageServer::send_message);
+}
+
+void LuaLanguageServer::confirm_code_completion(bool replace) {
+	if (!running) {
+		UtilityFunctions::printerr("LuaLanguageServer is not running!");
+		return;
+	}
+
+	UtilityFunctions::print(vformat("Buffer: %s", read_message()));
+}
+
+void LuaLanguageServer::request_code_completion(bool force) {
+	if (!running) {
+		UtilityFunctions::printerr("LuaLanguageServer is not running!");
+		return;
+	}
+
+	UtilityFunctions::print(vformat("Buffer: %s", read_message()));
+}
+
+TypedArray<Dictionary> LuaLanguageServer::filter_code_completion_candidates(const TypedArray<Dictionary> &candidates) const {
+	if (!running) {
+		UtilityFunctions::printerr("LuaLanguageServer is not running!");
+		return candidates;
+	}
+
+	UtilityFunctions::print(vformat("Buffer: %s", read_message()));
+
+	return candidates;
 }
 
 void LuaLanguageServer::stop() {
@@ -27,9 +58,10 @@ void LuaLanguageServer::stop() {
 	}
 
 	running = false;
-	server_process->kill();
-	delete server_process;
-	server_process = nullptr;
+	Subprocess::ProcessError err = server_process->kill_process();
+	if (err != Subprocess::OK) {
+		UtilityFunctions::printerr(vformat("Failed to kill LuaLanguageServer: %d", err));
+	}
 }
 
 bool LuaLanguageServer::is_running() {
@@ -48,28 +80,42 @@ Error LuaLanguageServer::start(String luals_path) {
 	String path = file->get_path_absolute();
 	file->close();
 
+	Subprocess::ProcessError err = server_process->start(path.utf8().get_data(), nullptr);
+	if (err != Subprocess::OK) {
+		return ERR_CANT_CREATE;
+	}
+
 	running = true;
-	server_process = new subprocess::Popen({ path.utf8().get_data() },
-			subprocess::input{ subprocess::PIPE },
-			subprocess::output{ subprocess::PIPE });
 
 	return OK;
 }
 
-String LuaLanguageServer::send_message(String message) {
+void LuaLanguageServer::send_message(String message) {
+	if (!running) {
+		UtilityFunctions::printerr("LuaLanguageServer is not running!");
+		return;
+	}
+
+	server_process->write_message(message.utf8().get_data(), message.length());
+}
+
+String LuaLanguageServer::read_message() const {
 	if (!running) {
 		UtilityFunctions::printerr("LuaLanguageServer is not running!");
 		return "";
 	}
 
-	const char *msg = message.utf8().get_data();
-	server_process->send(msg, strlen(msg));
-	std::pair<subprocess::OutBuffer, subprocess::ErrBuffer> result = server_process->communicate();
-	if (result.second.buf.size() > 0) {
-		UtilityFunctions::printerr(vformat("LuaLanguageServer comunication error: %s", result.second.buf.data()));
+	Subprocess::ProcessError err = server_process->poll();
+	if (err != Subprocess::OK) {
+		UtilityFunctions::printerr(vformat("Failed to poll LuaLanguageServer: %d", err));
+		return "";
 	}
 
-	String output;
-	output.parse_utf8(result.first.buf.data());
-	return output;
+	String buffer_content;
+	const char *buffer = server_process->read_buffer();
+	if (buffer != nullptr) {
+		buffer_content = buffer;
+	}
+
+	return buffer_content;
 }

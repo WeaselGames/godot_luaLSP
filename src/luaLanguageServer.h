@@ -5,7 +5,7 @@
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/typed_array.hpp>
 
-#include <subprocess.hpp>
+#include "platform/subprocess.h"
 
 using namespace godot;
 
@@ -31,9 +31,11 @@ public:
 
 private:
 	bool running = false;
-	subprocess::Popen *server_process = nullptr;
 
-	String send_message(String message);
+	void send_message(String message);
+	String read_message() const;
+
+	Subprocess *server_process = nullptr;
 };
 
 #endif
