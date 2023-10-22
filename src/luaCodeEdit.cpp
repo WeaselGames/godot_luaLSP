@@ -8,7 +8,7 @@ LuaCodeEdit::LuaCodeEdit() {
 	lua_language_server.instantiate();
 
 	code_completion_timer = memnew(Timer);
-	code_completion_timer->set_wait_time(30);
+	code_completion_timer->set_wait_time(500);
 	code_completion_timer->set_autostart(true);
 	code_completion_timer->connect("timeout", Callable(this, "_on_code_completion_timeout"));
 
@@ -36,9 +36,14 @@ void LuaCodeEdit::_enter_tree() {
 		return;
 	}
 
-	Error err = lua_language_server->start(luals_path);
-	if (err != OK) {
-		UtilityFunctions::printerr(vformat("Failed to start LuaLanguageServer: %s", UtilityFunctions::error_string(err)));
+	if (luals_workspace_path == "") {
+		UtilityFunctions::printerr("LuaLanguageServer workspace path is not set!");
+		return;
+	}
+
+	LuaLanguageServer::LuaLSError err = lua_language_server->start(luals_path, luals_workspace_path);
+	if (err != LuaLanguageServer::LUALS_OK) {
+		UtilityFunctions::printerr(vformat("Failed to start LuaLanguageServer: %s", LuaLanguageServer::error_string(err)));
 	}
 }
 
@@ -47,6 +52,9 @@ void LuaCodeEdit::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_lua_language_server_path", "luals_path"), &LuaCodeEdit::set_lua_language_server_path);
 	ClassDB::bind_method(D_METHOD("get_lua_language_server_path"), &LuaCodeEdit::get_lua_language_server_path);
+
+	ClassDB::bind_method(D_METHOD("set_lua_workspace_path", "luals_workspace_path"), &LuaCodeEdit::set_lua_workspace_path);
+	ClassDB::bind_method(D_METHOD("get_lua_workspace_path"), &LuaCodeEdit::get_lua_workspace_path);
 
 	ClassDB::bind_method(D_METHOD("set_code_completion_timeout", "timeout"), &LuaCodeEdit::set_code_completion_timeout);
 	ClassDB::bind_method(D_METHOD("get_code_completion_timeout"), &LuaCodeEdit::get_code_completion_timeout);
@@ -75,6 +83,7 @@ void LuaCodeEdit::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_lua_language_server"), &LuaCodeEdit::get_lua_language_server);
 
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "lua_language_server_path"), "set_lua_language_server_path", "get_lua_language_server_path");
+	ADD_PROPERTY(PropertyInfo(Variant::STRING, "lua_workspace_path"), "set_lua_workspace_path", "get_lua_workspace_path");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "code_completion_timeout"), "set_code_completion_timeout", "get_code_completion_timeout");
 
 	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "member_variable_color"), "set_member_variable_color", "get_member_variable_color");
@@ -87,17 +96,14 @@ void LuaCodeEdit::_bind_methods() {
 }
 
 void LuaCodeEdit::_confirm_code_completion(bool replace) {
-	UtilityFunctions::print("Confirming code completion");
 	lua_language_server->confirm_code_completion(replace);
 }
 
 void LuaCodeEdit::_request_code_completion(bool force) {
-	UtilityFunctions::print("Requesting code completion");
 	lua_language_server->request_code_completion(force);
 }
 
 TypedArray<Dictionary> LuaCodeEdit::_filter_code_completion_candidates(const TypedArray<Dictionary> &candidates) const {
-	UtilityFunctions::print("Filtering code completion candidates");
 	return lua_language_server->filter_code_completion_candidates(candidates);
 }
 
@@ -119,6 +125,14 @@ void LuaCodeEdit::set_lua_language_server_path(String luals_path) {
 
 String LuaCodeEdit::get_lua_language_server_path() const {
 	return luals_path;
+}
+
+void LuaCodeEdit::set_lua_workspace_path(String luals_workspace_path) {
+	this->luals_workspace_path = luals_workspace_path;
+}
+
+String LuaCodeEdit::get_lua_workspace_path() const {
+	return luals_workspace_path;
 }
 
 void LuaCodeEdit::set_code_completion_timeout(int timeout) {

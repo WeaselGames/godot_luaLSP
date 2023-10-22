@@ -7,11 +7,15 @@ class WindowsSubprocess : public Subprocess {
 public:
 	WindowsSubprocess();
 	virtual ~WindowsSubprocess() override;
-	virtual ProcessError start(const char *executeable, char *const *args) override;
-	virtual ProcessError write_message(const void *buffer, size_t n) override;
-	virtual ProcessError kill_process(int signal = 9) override;
-	virtual char *read_buffer() override;
-	virtual char *read_error_buffer() override;
+	virtual Error start(std::string executeable, std::vector<std::string> args) override;
+	virtual Error write_message(std::string message) override;
+	virtual Error kill_process() override;
+	virtual Status get_status() override;
+
+	virtual std::pair<std::string, Error> read_output(int nbytes) override;
+	virtual std::pair<char, Error> read_output_char() override;
+	virtual std::pair<std::string, Error> read_error(int nbytes) override;
+	virtual std::pair<char, Error> read_error_char() override;
 };
 
 #endif

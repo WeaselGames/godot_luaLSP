@@ -1,18 +1,18 @@
 #include "subprocess.h"
 
 #include <fcntl.h>
-#include <malloc.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 PosixSubprocess::PosixSubprocess() {
-	buffer[0] = '\0';
-	error_buffer[0] = '\0';
 }
 
 PosixSubprocess::~PosixSubprocess() {
 	if (running) {
-		ProcessError err = this->kill_process();
+		Error err = this->kill_process();
 		if (err != OK) {
 			// TODO: Handle error
 		}
@@ -21,10 +21,11 @@ PosixSubprocess::~PosixSubprocess() {
 
 #include <iostream>
 
-Subprocess::ProcessError PosixSubprocess::start(const char *executeable, char *const *args) {
+Subprocess::Error PosixSubprocess::start(std::string executeable, std::vector<std::string> args) {
 	if (running) {
 		return ALREAD_RUNNING;
 	}
+
 	if (stdio_pipe[0] != 0) {
 		close(stdio_pipe[0]);
 	}
@@ -49,8 +50,8 @@ Subprocess::ProcessError PosixSubprocess::start(const char *executeable, char *c
 	int flags = fcntl(stdio_pipe[0], F_GETFD);
 	fcntl(stdio_pipe[0], F_SETFL, flags | O_NONBLOCK);
 
-	flags = fcntl(stdio_pipe[1], F_GETFD);
-	fcntl(stdio_pipe[1], F_SETFL, flags | O_NONBLOCK);
+	flags = fcntl(stderr_pipe[0], F_GETFD);
+	fcntl(stderr_pipe[0], F_SETFL, flags | O_NONBLOCK);
 
 	proccess_pid = fork();
 	if (proccess_pid == 0) { // Child process
@@ -58,8 +59,13 @@ Subprocess::ProcessError PosixSubprocess::start(const char *executeable, char *c
 		dup2(stdio_pipe[1], STDOUT_FILENO);
 		dup2(stderr_pipe[1], STDERR_FILENO);
 		close(stderr_pipe[0]);
-		write(STDOUT_FILENO, "Hello", 5);
-		execvp(executeable, args);
+		char **args_c = (char **)malloc(sizeof(char *) * (args.size() + 1));
+		for (int i = 0; i < args.size(); i++) {
+			args_c[i] = (char *)args[i].c_str();
+		}
+		args_c[args.size()] = nullptr;
+		execvp(executeable.c_str(), args_c);
+		delete[] args_c;
 		close(stdio_pipe[0]);
 		close(stdio_pipe[1]);
 		close(stderr_pipe[1]);
@@ -71,12 +77,12 @@ Subprocess::ProcessError PosixSubprocess::start(const char *executeable, char *c
 	return OK;
 }
 
-Subprocess::ProcessError PosixSubprocess::write_message(const void *buffer, size_t n) {
+Subprocess::Error PosixSubprocess::write_message(std::string message) {
 	if (!running) {
 		return NOT_RUNNING;
 	}
 
-	int ret = write(stdio_pipe[1], buffer, n);
+	int ret = write(stdio_pipe[1], message.c_str(), message.length());
 	if (ret == -1) {
 		return FAILED_TO_WRITE;
 	}
@@ -84,120 +90,114 @@ Subprocess::ProcessError PosixSubprocess::write_message(const void *buffer, size
 	return OK;
 }
 
-Subprocess::ProcessError PosixSubprocess::poll() {
-	if (!running) {
-		return NOT_RUNNING;
-	}
-	char _char = '\0';
-	int amount_read = 0;
-
-	int error_read_amount = (SUBPROCESS_BUFFER_SIZE - 1) - current_error_buffer_size;
-	if (error_read_amount <= 0) {
-		return BUFFER_FULL;
-	}
-
-	int nbytes = read(stderr_pipe[0], &_char, 1);
-	while (nbytes > 0) {
-		amount_read++;
-		error_buffer[current_error_buffer_size] = _char;
-		current_error_buffer_size++;
-
-		if (current_buffer_size >= SUBPROCESS_BUFFER_SIZE - 1) {
-			return BUFFER_FULL;
-		}
-
-		nbytes = read(stderr_pipe[0], &_char, 1);
-	}
-
-	if (nbytes == -1) {
-		if (errno != EAGAIN && errno != EWOULDBLOCK) {
-			return FAILED_TO_READ;
-		}
-	}
-
-	int read_amount = (SUBPROCESS_BUFFER_SIZE - 1) - current_buffer_size;
-	if (read_amount <= 0) {
-		return BUFFER_FULL;
-	}
-
-	nbytes = read(stdio_pipe[0], &_char, 1);
-
-	while (nbytes > 0) {
-		amount_read++;
-		buffer[current_buffer_size] = _char;
-		current_buffer_size++;
-
-		if (current_buffer_size >= SUBPROCESS_BUFFER_SIZE - 1) {
-			return BUFFER_FULL;
-		}
-
-		nbytes = read(stdio_pipe[0], &_char, 1);
-	}
-
-	if (nbytes == -1) {
-		if (errno != EAGAIN && errno != EWOULDBLOCK) {
-			return FAILED_TO_READ;
-		}
-	}
-
-	if (nbytes == 0) {
-		return NOTHING_TO_READ;
-	}
-
-	return OK;
-}
-
-Subprocess::ProcessError PosixSubprocess::kill_process(int signal) {
+Subprocess::Error PosixSubprocess::kill_process() {
 	if (!running) {
 		return NOT_RUNNING;
 	}
 
-	int ret = kill(proccess_pid, signal);
-	if (ret == 0) {
+	int status;
+	kill(proccess_pid, SIGKILL);
+	waitpid(proccess_pid, &status, 0);
+	if (WIFEXITED(status)) {
+		running = false;
+		return OK;
+	} else if (WIFSIGNALED(status)) {
 		running = false;
 		return OK;
 	}
 
-	close(stdio_pipe[0]);
-	close(stdio_pipe[1]);
-	close(stderr_pipe[0]);
-
 	return FAILED_TO_KILL;
 }
 
-char *PosixSubprocess::read_buffer() {
+Subprocess::Status PosixSubprocess::get_status() {
 	if (!running) {
-		return nullptr;
+		return STOPPED;
 	}
 
-	if (current_buffer_size == 0) {
-		std::cout << "No buffer to read" << std::endl;
-		return nullptr;
+	int ret = waitpid(proccess_pid, nullptr, WNOHANG);
+	if (ret > 0) {
+		return RUNNING;
+	} else if (ret == -1) {
+		return ERROR;
 	}
 
-	char *buffer_content = (char *)malloc(current_buffer_size);
-	for (int i = 0; i < current_buffer_size; i++) {
-		buffer_content[i] = buffer[i];
-	}
-
-	current_buffer_size = 0;
-	buffer[0] = '\0';
-
-	return buffer_content;
+	return STOPPED;
 }
 
-char *PosixSubprocess::read_error_buffer() {
+std::pair<std::string, PosixSubprocess::Error> PosixSubprocess::read_output(int nbytes) {
 	if (!running) {
-		return nullptr;
+		return std::make_pair("", NOT_RUNNING);
 	}
 
-	char *buffer_content = (char *)malloc(current_error_buffer_size);
-	for (int i = 0; i < current_error_buffer_size; i++) {
-		buffer_content[i] = error_buffer[i];
+	char *content = (char *)malloc(nbytes);
+	int ret = read(stdio_pipe[0], content, nbytes);
+	if (ret == -1) {
+		if (errno != EAGAIN && errno != EWOULDBLOCK) {
+			return std::make_pair("", FAILED_TO_READ);
+		}
+
+		return std::make_pair("", NOTHING_TO_READ);
 	}
 
-	current_error_buffer_size = 0;
-	error_buffer[0] = '\0';
+	std::string content_string = std::string(content, ret);
+	free(content);
 
-	return buffer_content;
+	return std::make_pair(content_string, OK);
+}
+
+std::pair<char, PosixSubprocess::Error> PosixSubprocess::read_output_char() {
+	if (!running) {
+		return std::make_pair('\0', NOT_RUNNING);
+	}
+
+	char _char = '\0';
+	int nbytes = read(stdio_pipe[0], &_char, 1);
+	if (nbytes == -1) {
+		if (errno != EAGAIN && errno != EWOULDBLOCK) {
+			return std::make_pair('\0', FAILED_TO_READ);
+		}
+
+		return std::make_pair('\0', NOTHING_TO_READ);
+	}
+
+	return std::make_pair(_char, OK);
+}
+
+std::pair<std::string, PosixSubprocess::Error> PosixSubprocess::read_error(int nbytes) {
+	if (!running) {
+		return std::make_pair("", NOT_RUNNING);
+	}
+
+	char *content = (char *)malloc(nbytes);
+	int ret = read(stderr_pipe[0], content, nbytes);
+	if (ret == -1) {
+		if (errno != EAGAIN && errno != EWOULDBLOCK) {
+			return std::make_pair("", FAILED_TO_READ);
+		}
+
+		return std::make_pair("", NOTHING_TO_READ);
+	}
+
+	std::string content_string = std::string(content, ret);
+	free(content);
+
+	return std::make_pair(content_string, OK);
+}
+
+std::pair<char, PosixSubprocess::Error> PosixSubprocess::read_error_char() {
+	if (!running) {
+		return std::make_pair('\0', NOT_RUNNING);
+	}
+
+	char _char = '\0';
+	int nbytes = read(stderr_pipe[0], &_char, 1);
+	if (nbytes == -1) {
+		if (errno != EAGAIN && errno != EWOULDBLOCK) {
+			return std::make_pair('\0', FAILED_TO_READ);
+		}
+
+		return std::make_pair('\0', NOTHING_TO_READ);
+	}
+
+	return std::make_pair(_char, OK);
 }

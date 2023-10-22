@@ -32,6 +32,9 @@ public:
 	void set_lua_language_server_path(String luals_path);
 	String get_lua_language_server_path() const;
 
+	void set_lua_workspace_path(String luals_workspace_path);
+	String get_lua_workspace_path() const;
+
 	void set_code_completion_timeout(int timeout);
 	int get_code_completion_timeout() const;
 
@@ -58,6 +61,7 @@ public:
 
 private:
 	String luals_path;
+	String luals_workspace_path;
 
 	TypedArray<String> code_completion_prefixes;
 

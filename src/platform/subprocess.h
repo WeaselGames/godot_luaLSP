@@ -1,20 +1,19 @@
 #ifndef SUBPROCESS_H
 #define SUBPROCESS_H
 
-#define SUBPROCESS_BUFFER_SIZE 1024
-
-#include <stddef.h>
+#include <string>
+#include <utility>
+#include <vector>
 
 class Subprocess {
 protected:
 	bool running = false;
 
 public:
-	enum ProcessError {
+	enum Error {
 		OK,
 		NOT_RUNNING,
 		ALREAD_RUNNING,
-		BUFFER_FULL,
 		NOTHING_TO_READ,
 		FAILED_TO_KILL,
 		FAILED_TO_WRITE,
@@ -22,16 +21,26 @@ public:
 		FAILED_TO_CREATE_PIPE,
 	};
 
+	enum Status {
+		RUNNING,
+		STOPPED,
+		ERROR
+	};
+
 	virtual ~Subprocess() = default;
-	virtual ProcessError start(const char *executeable, char *const *args) = 0;
-	virtual ProcessError write_message(const void *buffer, size_t n) = 0;
-	virtual ProcessError poll() = 0;
-	virtual ProcessError kill_process(int signal = 9) = 0;
-	virtual char *read_buffer() = 0;
-	virtual char *read_error_buffer() = 0;
+	virtual Error start(std::string executeable, std::vector<std::string> args) = 0;
+	virtual Error write_message(std::string message) = 0;
+	virtual Error kill_process() = 0;
+	virtual Status get_status() = 0;
+
+	virtual std::pair<std::string, Error> read_output(int nbytes) = 0;
+	virtual std::pair<char, Error> read_output_char() = 0;
+	virtual std::pair<std::string, Error> read_error(int nbytes) = 0;
+	virtual std::pair<char, Error> read_error_char() = 0;
 
 	bool is_running() const;
 
+	static std::string error_to_string(Error error);
 	static Subprocess *new_platform_subprocess();
 };
 
