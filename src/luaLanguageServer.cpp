@@ -102,7 +102,7 @@ LuaLanguageServer::LuaLSError LuaLanguageServer::start(String luals_path, String
 	workspace_path = luals_workspace_path;
 
 	Ref<FileAccess> file = FileAccess::open(luals_path, FileAccess::READ);
-	if (!file->is_open()) {
+	if (!file.is_valid() || !file->is_open()) {
 		return LUALS_NOT_FOUND;
 	}
 

@@ -67,12 +67,13 @@ WindowsSubprocess::Error WindowsSubprocess::start(std::string executable, std::v
 		args_str += " " + args[i];
 	}
 
-	if (!CreateProcess(nullptr, (LPSTR)args_str.c_str(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &process_info)) {
+	if (!CreateProcess(nullptr, (LPSTR)args_str.c_str(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &process_info)) {
 		return FALIED_TO_START;
 	}
 
 	running = true;
 	CloseHandle(stderr_pipe[1]);
+	stderr_pipe[1] = 0;
 
 	return OK;
 }
@@ -101,8 +102,11 @@ WindowsSubprocess::Error WindowsSubprocess::kill_process() {
 	running = false;
 
 	CloseHandle(stdio_pipe[1]);
+	stdio_pipe[1] = 0;
 	CloseHandle(stdio_pipe[0]);
+	stdio_pipe[0] = 0;
 	CloseHandle(stderr_pipe[0]);
+	stderr_pipe[0] = 0;
 
 	return OK;
 }
