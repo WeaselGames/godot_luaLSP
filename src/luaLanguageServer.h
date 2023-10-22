@@ -8,7 +8,7 @@
 #include <mutex>
 #include <thread>
 
-#include "platform/subprocess.h"
+#include "platform/subprocess.hpp"
 
 using namespace godot;
 

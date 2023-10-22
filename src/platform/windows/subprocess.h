@@ -1,7 +1,11 @@
 #ifndef WINDOWS_SUBPROCESS_H
 #define WINDOWS_SUBPROCESS_H
 
-#include "../subprocess.h"
+#if defined(LCE_PLATFORM_WINDOWS)
+
+#include <windows.h>
+
+#include "../subprocess.hpp"
 
 class WindowsSubprocess : public Subprocess {
 public:
@@ -16,6 +20,13 @@ public:
 	virtual std::pair<char, Error> read_output_char() override;
 	virtual std::pair<std::string, Error> read_error(int nbytes) override;
 	virtual std::pair<char, Error> read_error_char() override;
+
+private:
+	HANDLE stdio_pipe[2];
+	HANDLE stderr_pipe[2];
+	PROCESS_INFORMATION process_info;
+	SECURITY_ATTRIBUTES sa;
 };
+#endif
 
 #endif

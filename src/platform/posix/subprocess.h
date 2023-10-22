@@ -1,7 +1,9 @@
 #ifndef POSIX_SUBPROCESS_H
 #define POSIX_SUBPROCESS_H
 
-#include "../subprocess.h"
+#if defined(LCE_PLATFORM_POSIX)
+
+#include "../subprocess.hpp"
 #include <unistd.h>
 
 class PosixSubprocess : public Subprocess {
@@ -23,5 +25,7 @@ private:
 	int stderr_pipe[2];
 	pid_t proccess_pid = 0;
 };
+
+#endif
 
 #endif

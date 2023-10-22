@@ -1,3 +1,5 @@
+#if defined(LCE_PLATFORM_POSIX)
+
 #include "subprocess.h"
 
 #include <fcntl.h>
@@ -6,6 +8,10 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+Subprocess *Subprocess::new_platform_subprocess() {
+	return new PosixSubprocess();
+}
 
 PosixSubprocess::PosixSubprocess() {
 }
@@ -23,7 +29,7 @@ PosixSubprocess::~PosixSubprocess() {
 
 Subprocess::Error PosixSubprocess::start(std::string executeable, std::vector<std::string> args) {
 	if (running) {
-		return ALREAD_RUNNING;
+		return ALREADY_RUNNING;
 	}
 
 	if (stdio_pipe[0] != 0) {
@@ -118,7 +124,7 @@ Subprocess::Status PosixSubprocess::get_status() {
 	if (ret > 0) {
 		return RUNNING;
 	} else if (ret == -1) {
-		return ERROR;
+		return ERROR_STATE;
 	}
 
 	return STOPPED;
@@ -201,3 +207,5 @@ std::pair<char, PosixSubprocess::Error> PosixSubprocess::read_error_char() {
 
 	return std::make_pair(_char, OK);
 }
+
+#endif
